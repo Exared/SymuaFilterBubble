@@ -5,16 +5,38 @@ turtles-own
   attack-rate
 ]
 
+globals [
+  red-point
+  green-point
+  yellow-point
+  blue-point
+]
+
+
 to set-turtles-color
   ask turtles [ if opinion = 0 [set color red] if opinion = 1 [set color green] if opinion = 2 [set color yellow] if opinion = 3 [set color blue]]
 end
 
-to move-turtle ;; move turtle randomly each tick (called in go)
+
+to move-turtle
   ask turtles [
-    right random 360
+    if opinion = 0 [
+      face red-point ; Specify the target patch coordinates
+    ]
+    if opinion = 1 [
+      face green-point ; Specify the target patch coordinates
+    ]
+    if opinion = 2 [
+      face yellow-point ; Specify the target patch coordinates
+    ]
+    if opinion = 3 [
+      face blue-point ; Specify the target patch coordinates
+    ]
     forward 1
   ]
 end
+
+
 
 to decrease-tolerance ;; decrease tolerance for each tick (called in go)
   ask turtles [
@@ -41,10 +63,31 @@ to init-turtles
     set shape "person"
     setxy random-xcor random-ycor
     set opinion random 4
-    set defense-rate random-float 1
-    set attack-rate random-float 1
+    set defense-rate init-defense-rate
+    set attack-rate init-attack-rate
   ]
   set-turtles-color
+
+  set green-point patch 2000 1000
+  ask green-point [
+    set pcolor green
+  ]
+
+  set yellow-point patch 2000 -1000
+  ask yellow-point [
+    set pcolor yellow
+  ]
+
+  set blue-point patch -2000 -1000
+  ask blue-point [
+    set pcolor blue
+  ]
+
+  set red-point patch -2000 1000
+  ask red-point [
+    set pcolor red
+  ]
+
 end
 
 to go
@@ -59,7 +102,6 @@ to init-simulation
   __clear-all-and-reset-ticks
   init-turtles
 end
-
 @#$#@#$#@
 GRAPHICS-WINDOW
 375
@@ -135,6 +177,36 @@ nb-turtles
 1
 1
 turtle
+HORIZONTAL
+
+SLIDER
+7
+140
+180
+174
+init-defense-rate
+init-defense-rate
+0
+1
+1.0
+0.01
+1
+NIL
+HORIZONTAL
+
+SLIDER
+76
+235
+249
+269
+init-attack-rate
+init-attack-rate
+0
+1
+0.06
+0.01
+1
+NIL
 HORIZONTAL
 
 @#$#@#$#@
