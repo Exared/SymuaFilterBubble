@@ -45,7 +45,7 @@ Just need to install NetLogo.
 Play with the parameters, click on setup
 Then click on go
 
-![Image]([chemin/vers/image.png](https://github.com/Exared/SymuaFilterBubble/blob/main/Images/setup.png))
+![Image](Images/simulation.gif)
 
 ## Contributors
 -   Theo Tinti
