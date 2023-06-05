@@ -1,106 +1,300 @@
-turtles-own
-[
-  opinion ;;Start opinion
-  defense-rate
-  attack-rate
+turtles-own [
+  friends                  ; Liste des amis de chaque agent
+  belief                   ; Croyance de chaque agent
+  id                       ; Id de chaque agent
 ]
 
-globals [
-  red-point
-  green-point
-  yellow-point
-  blue-point
-]
+to setup
+  clear-all
+  init-turtles                        ; Initialisation des agents
+  create-visible-links                ; Creer des liens visibles entre les agents amis
+  reset-ticks
+end
 
+to go
+  move-towards-random-friend              ; Movement des agents
+  show-graph-population                   ; Affiche les groupes d'agents ayant une certaine opinion majoritaire
 
+  if ticks mod 20 = 0  and ticks != 0 [
+    recommend-friends                     ; Recommande de nouveaux amis
+    create-visible-links                  ; Update l'affichage des liens entre les amis
+  ]
+  if ticks mod 10 = 0 [
+    update-opinion                        ; Update les opinions des agents
+  ]
+
+  if ticks = 1000 [display-friend-percentages stop]
+
+  tick
+end
+
+to show-graph-population
+  let red-turtles count turtles with [ dominant-belief belief = 0 ]
+  let blue-turtles count turtles with [ dominant-belief belief = 1 ]
+  let green-turtles count turtles with [ dominant-belief belief = 2 ]
+  let yellow-turtles count turtles with [ dominant-belief belief = 3 ]
+
+  ; Tracer les valeurs sur le graphique
+  set-current-plot "population"
+  set-current-plot-pen "Rouge"
+  plot red-turtles
+  set-current-plot-pen "Bleu"
+  plot blue-turtles
+  set-current-plot-pen "Vert"
+  plot green-turtles
+  set-current-plot-pen "Jaune"
+  plot yellow-turtles
+end
+
+to init-turtles
+  create-turtles num-agents [
+    setxy random-xcor random-ycor    ; Position initiale aléatoire
+    set shape "person"               ; Forme des agents
+    set color white                  ; Couleur des agents
+    set size 0.8                     ; Taille des agents
+    set friends nobody               ; Initialiser la liste des amis
+
+    set belief n-values 4 [random-float 1.0] ; Définir la croyance initiale de chaque agents de maniere aleatoire
+    set id who
+    if show-id [ set label id set label-color red ]
+  ]
+
+  ; Établir des liens d'amitié entre les agents
+  ; On initialise des paires d'amis
+  let unpaired-turtles turtles
+  while [any? unpaired-turtles] [
+    let turtle1 one-of unpaired-turtles
+    set unpaired-turtles unpaired-turtles with [self != turtle1]
+    if any? unpaired-turtles [
+      let turtle2 one-of unpaired-turtles
+      set unpaired-turtles unpaired-turtles with [self != turtle2]
+      ask turtle1 [set friends (turtle-set friends turtle2)]
+      ask turtle2 [set friends (turtle-set friends turtle1)]
+    ]
+  ]
+end
+
+; Creer des liens visibles entre les agents amis
+to create-visible-links
+  ask turtles [
+    let my-friends friends
+    create-links-with my-friends
+  ]
+end
+
+; Return l'index de l'opinion la plus forte d'un agent
+to-report dominant-belief [beliefs]
+  report position max beliefs beliefs
+end
+
+; Set la couleur d'un agent selon son opinion la plus forte
 to set-turtles-color
-  ask turtles [ if opinion = 0 [set color red] if opinion = 1 [set color green] if opinion = 2 [set color yellow] if opinion = 3 [set color blue]]
+  let max-index dominant-belief belief
+  if max-index = 0 [ set color red ]
+  if max-index = 1 [ set color blue ]
+  if max-index = 2 [ set color green ]
+  if max-index = 3 [ set color yellow ]
 end
 
-
-to move-turtle
+; Se deplace vers un ami aleatoire
+to move-towards-random-friend
   ask turtles [
-    if opinion = 0 [
-      face red-point ; Specify the target patch coordinates
-    ]
-    if opinion = 1 [
-      face green-point ; Specify the target patch coordinates
-    ]
-    if opinion = 2 [
-      face yellow-point ; Specify the target patch coordinates
-    ]
-    if opinion = 3 [
-      face blue-point ; Specify the target patch coordinates
-    ]
-    forward 1
+    let friend one-of friends
+    if random 2 = 0 [ face friend]
+
+    fd movement-step
   ]
 end
 
-
-
-to decrease-tolerance ;; decrease tolerance for each tick (called in go)
+; on remplace l'opinion de chaque agent par son la somme ponderer entre son opinion et celle de ses amis
+to update-opinion
   ask turtles [
-    set defense-rate defense-rate - 0.01
+    let total-weight 0 ; Variable pour stocker la somme des poids des amis
+    let weighted-opinion (list 0 0 0 0) ; Liste pour stocker la somme pondérée des opinions des amis
+
+    ; Parcourir les amis de l'agent
+    ask friends [
+      ; Effectuer la pondération de l'opinion de l'ami et l'ajouter à la somme pondérée
+      set weighted-opinion map [x -> x * friends-influence] belief
+    ]
+    set belief (map [ [a b] -> a + b] belief weighted-opinion)
+    set-turtles-color
   ]
 end
 
-to get-influenced
-  ask turtles [
-    let col opinion ;;take the opinon of the first ask turlte
-    let influence attack-rate
-    ask turtles in-radius 5 [ ;; for each turtle in a radius of 5
-      if influence > defense-rate [ ;;condition to influence
-        if col = 0 [set color red] if col = 1 [set color green] if col = 2 [set color yellow] if col = 3 [set color blue] ;; set new color of the guy in the radius
-        set opinion col
-        set defense-rate defense-rate + 0.175 ;;increase defense of his new opinion
+; Recommandation d'amis differents de l'agent courant
+to recommend-diversity [potential-friends]
+  let current-turtle self                   ; Agent courant (pour lequel on veut recommander des amis)
+  let my-belief dominant-belief belief      ; Opinion dominante de l'agent courant
+
+  ask potential-friends                     ; On Iterate sur tous les potentiels amis
+  [
+    let their-belief dominant-belief belief ; On recupere l'opinion dominante du potentiel ami
+    if (count friends < max-friend) and (count [friends] of current-turtle < max-friend)  [    ; On verifie que l'agent courant ET le potentiel ami non pas le nombre max d'amis atteint
+      if their-belief != my-belief [                                                           ; Si leur opinion dominante est differente (car ici on veut diversifier les amis)
+        set friends (turtle-set friends current-turtle)                                        ; On ajoute l'agent courant dans la liste d'amis du potentiel ami
+        let potential-friend self
+        ask current-turtle [
+          set friends (turtle-set friends potential-friend)                                    ; On ajoute le potentiel ami dans la liste d'amis de l'agent courant
+        ]
+        stop                                                                                   ; On quit la loop apres avoir recommander le premier ami      ]
       ]
     ]
   ]
 end
 
-to init-turtles
-  create-turtles nb-turtles [
-    set shape "person"
-    setxy random-xcor random-ycor
-    set opinion random 4
-    set defense-rate init-defense-rate
-    set attack-rate init-attack-rate
-  ]
-  set-turtles-color
+; Recommandation d'amis similaires a l'agent courant
+to recommend-similarity [potential-friends]
+  let current-turtle self                   ; Agent courant (pour lequel on veut recommander des amis)
+  let my-belief dominant-belief belief      ; Opinion dominante de l'agent courant
 
-  set green-point patch 2000 1000
-  ask green-point [
-    set pcolor green
+  ask potential-friends                     ; On Iterate sur tous les potentiels amis
+  [
+    let their-belief dominant-belief belief ; On recupere l'opinion dominante du potentiel ami
+    if (count friends < max-friend) and (count [friends] of current-turtle < max-friend)  [    ; On verifie que l'agent courant ET le potentiel ami non pas le nombre max d'amis atteint
+      if their-belief = my-belief [                                                           ; Si leur opinion dominante est la meme (car ici on veut personnaliser les amis)
+        set friends (turtle-set friends current-turtle)                                        ; On ajoute l'agent courant dans la liste d'amis du potentiel ami
+        let potential-friend self
+        ask current-turtle [
+          set friends (turtle-set friends potential-friend)        ; On ajoute le potentiel ami dans la liste d'amis de l'agent courant
+        ]
+        stop      ; On quit la loop apres avoir recommander le premier ami
+      ]
+    ]
   ]
-
-  set yellow-point patch 2000 -1000
-  ask yellow-point [
-    set pcolor yellow
-  ]
-
-  set blue-point patch -2000 -1000
-  ask blue-point [
-    set pcolor blue
-  ]
-
-  set red-point patch -2000 1000
-  ask red-point [
-    set pcolor red
-  ]
-
 end
 
-to go
-  if ticks = 1000 [stop]
-  move-turtle
-  get-influenced
-  decrease-tolerance
-  tick
+; Recommandation d'amis random
+to recommend-random [potential-friends]
+  let current-turtle self                   ; Agent courant (pour lequel on veut recommander des amis)
+  let my-belief dominant-belief belief      ; Opinion dominante de l'agent courant
+
+  ask potential-friends                     ; On Iterate sur tous les potentiels amis
+  [
+    let their-belief dominant-belief belief      ; On recupere l'opinion dominante du potentiel ami
+    if (count friends < max-friend) and (count [friends] of current-turtle < max-friend)  [    ; On verifie que l'agent courant ET le potentiel ami non pas le nombre max d'amis atteint
+      set friends (turtle-set friends current-turtle)                                          ; On ajoute l'agent courant dans la liste d'amis du potentiel ami
+      let potential-friend self
+      ask current-turtle [
+        set friends (turtle-set friends potential-friend)       ; On ajoute le potentiel ami dans la liste d'amis de l'agent courant
+      ]
+      stop     ; On quit la loop apres avoir recommander le premier ami
+    ]
+  ]
 end
 
-to init-simulation
-  __clear-all-and-reset-ticks
-  init-turtles
+
+;; Recommande un nouvel ami a chaque agent selon la strategie choisit
+to recommend-friends
+  ask turtles [
+    let potential-friends other turtles with [not member? self [friends] of myself]     ; Les potentiels amis sont tous les agents qui ne sont pas l'agent courant et qui ne sont pas deja amis avec lui
+    if random 2 = 0 [                                                                   ; On recommande des amis selon la strategy
+      if strategy = "Similarity" [recommend-similarity potential-friends]
+      if strategy = "Diversity" [recommend-diversity potential-friends]
+      if strategy = "Random" [recommend-random potential-friends]
+    ]
+  ]
+end
+
+
+to-report compute-friendship [current-dominant-belief]
+  let total-red 0
+  let total-blue 0
+  let total-green 0
+  let total-yellow 0
+
+  ; Parcourir tous les agents
+  ask turtles with [dominant-belief belief = current-dominant-belief][
+    let red-friends count friends with [ dominant-belief belief = 0 ]
+    let blue-friends count friends with [ dominant-belief belief = 1 ]
+    let green-friends count friends with [ dominant-belief belief = 2 ]
+    let yellow-friends count friends with [ dominant-belief belief = 3 ]
+
+    ; Ajouter les pourcentages d'amis à chaque couleur totale
+    set total-red total-red + red-friends
+    set total-blue total-blue + blue-friends
+    set total-green total-green + green-friends
+    set total-yellow total-yellow + yellow-friends
+  ]
+  report (list total-red total-blue total-green total-yellow)
+end
+
+to display-friend-percentages
+  ; On recupere la liste des relations des differentes couleurs
+  let red-relations compute-friendship 0
+  let blue-relations compute-friendship 1
+  let green-relations compute-friendship 2
+  let yellow-relations compute-friendship 3
+
+  ; On definit le nombres de liens d'amitie entre chaque couleurs
+  ; cas rouge
+  let total-red-red item 0 red-relations
+  let total-blue-red item 1 red-relations
+  let total-green-red item 2 red-relations
+  let total-yellow-red item 3 red-relations
+
+  ; cas bleu
+  let total-red-blue item 0 blue-relations
+  let total-blue-blue item 1 blue-relations
+  let total-green-blue item 2 blue-relations
+  let total-yellow-blue item 3 blue-relations
+
+  ; cas vert
+  let total-red-green item 0 green-relations
+  let total-blue-green item 1 green-relations
+  let total-green-green item 2 green-relations
+  let total-yellow-green item 3 green-relations
+
+  ; cas jaune
+  let total-red-yellow item 0 yellow-relations
+  let total-blue-yellow item 1 yellow-relations
+  let total-green-yellow item 2 yellow-relations
+  let total-yellow-yellow item 3 yellow-relations
+
+  ; Definit le total des relations que possede les differente couleurs
+  let total-friends-red total-red-red + total-red-blue + total-red-green + total-red-yellow
+  if total-friends-red = 0 [ set total-friends-red 1]
+  let total-friends-blue total-blue-red + total-blue-blue + total-blue-green + total-blue-yellow
+  if total-friends-blue = 0 [ set total-friends-blue 1]
+  let total-friends-green total-green-red + total-green-blue + total-green-green + total-green-yellow
+  if total-friends-green = 0 [ set total-friends-green 1]
+  let total-friends-yellow total-yellow-red + total-yellow-blue + total-yellow-green + total-yellow-yellow
+  if total-friends-yellow = 0 [ set total-friends-yellow 1]
+
+  ; Calculer les pourcentages moyens pour les rouges
+  let avg-red (total-red-red / total-friends-red) * 100
+  let avg-blue (total-blue-red / total-friends-blue) * 100
+  let avg-green (total-green-red / total-friends-green) * 100
+  let avg-yellow (total-yellow-red / total-friends-yellow) * 100
+
+   ; Calculer les pourcentages moyens pour les bleus
+  let avg-red-blue (total-red-blue / total-friends-red) * 100
+  let avg-blue-blue (total-blue-blue / total-friends-blue) * 100
+  let avg-green-blue (total-green-blue / total-friends-green) * 100
+  let avg-yellow-blue (total-yellow-blue / total-friends-yellow) * 100
+
+   ; Calculer les pourcentages moyens les verts
+  let avg-red-green (total-red-green / total-friends-red) * 100
+  let avg-blue-green (total-blue-green / total-friends-blue) * 100
+  let avg-green-green (total-green-green / total-friends-green) * 100
+  let avg-yellow-green (total-yellow-green / total-friends-yellow) * 100
+
+  ; Calculer les pourcentages moyens les jaunes
+  let avg-red-yellow (total-red-yellow / total-friends-red) * 100
+  let avg-blue-yellow (total-blue-yellow / total-friends-blue) * 100
+  let avg-green-yellow (total-green-yellow / total-friends-green) * 100
+  let avg-yellow-yellow (total-yellow-yellow / total-friends-yellow) * 100
+
+  ; Afficher les pourcentages moyens
+  pretty-print "rouges" avg-red avg-blue avg-green avg-yellow
+  pretty-print "bleus" avg-red-blue avg-blue-blue avg-green-blue avg-yellow-blue
+  pretty-print "verts" avg-red-green avg-blue-green avg-green-green avg-yellow-green
+  pretty-print "jaunes" avg-red-yellow avg-blue-yellow avg-green-yellow avg-yellow-yellow
+end
+
+; Affiche un pop-up pour connaitres les relations des differents opinions
+to pretty-print [cur-color avg-r avg-b avg-g avg-y]
+   user-message (word "Les " cur-color " ont en moyenne: " avg-r "% d'amis rouges - " avg-b "% d'amis bleus - " avg-g "% d'amis verts - " avg-y "% d'amis jaunes.")
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -136,7 +330,7 @@ BUTTON
 64
 43
 Setup
-init-simulation
+setup
 NIL
 1
 T
@@ -167,44 +361,102 @@ NIL
 SLIDER
 0
 73
-172
+250
 106
-nb-turtles
-nb-turtles
+num-agents
+num-agents
 4
 1000
-48.0
+80.0
+2
 1
-1
-turtle
+user
 HORIZONTAL
 
 SLIDER
-7
-140
-180
-174
-init-defense-rate
-init-defense-rate
+0
+187
+175
+220
+friends-influence
+friends-influence
 0
 1
-1.0
+0.98
 0.01
 1
 NIL
 HORIZONTAL
 
 SLIDER
-76
-235
-249
-269
-init-attack-rate
-init-attack-rate
 0
+132
+172
+165
+max-friend
+max-friend
 1
-0.06
-0.01
+50
+3.0
+1
+1
+NIL
+HORIZONTAL
+
+SWITCH
+119
+337
+230
+370
+show-id
+show-id
+1
+1
+-1000
+
+PLOT
+864
+47
+1326
+359
+population
+turtles
+ticks
+0.0
+10.0
+0.0
+10.0
+true
+false
+"" ""
+PENS
+"default" 1.0 0 -16777216 true "" "plot count turtles"
+"Rouge" 1.0 0 -5298144 true "" ""
+"Bleu" 1.0 0 -10649926 true "" ""
+"Vert" 1.0 0 -12087248 true "" ""
+"Jaune" 1.0 0 -1184463 true "" ""
+
+CHOOSER
+211
+148
+350
+193
+strategy
+strategy
+"Similarity" "Diversity" "Random"
+0
+
+SLIDER
+88
+295
+260
+328
+movement-step
+movement-step
+0.1
+2
+0.5
+0.1
 1
 NIL
 HORIZONTAL
