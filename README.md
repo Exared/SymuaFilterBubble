@@ -5,7 +5,7 @@ This project uses the NetLogo tool to simulate the emergence of filter bubbles i
 How do these bubbles appear?
 What phenomena diminish/amplify them?
 
-![Image](chemin/vers/image.png)
+![Image]([chemin/vers/image.png](https://github.com/Exared/SymuaFilterBubble/edit/main/Images/simulation.gif))
 
 ## Table des matières
 - [Aperçu](#aperçu)
@@ -43,11 +43,9 @@ Just need to install NetLogo.
 
 ## Utilisation
 Play with the parameters, click on setup
-![Image](chemin/vers/image.png)
-
 Then click on go
-![Image](chemin/vers/image.png)
 
+![Image]([chemin/vers/image.png](https://github.com/Exared/SymuaFilterBubble/edit/main/Images/setup.png))
 
 ## Contributors
 -   Theo Tinti
